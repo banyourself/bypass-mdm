@@ -5,17 +5,17 @@
 #  (The upstream's separate bypass-mdm-v2.sh is intentionally NOT included.)
 #  https://github.com/banyourself/bypass-mdm
 #
-#  This fork grew two fixes:
-#    - v2: this Mac's Recovery environment is missing some /usr/bin tools
+#  This fork grew two fixes
+#    - v2 - this Mac's Recovery environment is missing some /usr/bin tools
 #      (basename and friends), so this script does ALL text handling with
 #      pure bash builtins (no basename, no awk, no grep, no sed). It only
-#      needs: curl, dscl, mkdir, rm, touch, chown.
-#    - v3: volume detection no longer assumes a volume is named "... Data".
+#      needs - curl, dscl, mkdir, rm, touch and chown.
+#    - v3 - volume detection no longer assumes a volume is named "... Data".
 #      The data volume is found by its content (it holds the user database
-#      at private/var/db/dslocal/nodes/Default); the system volume by
-#      /System/Library/CoreServices. Names are only a fallback.
+#      at private/var/db/dslocal/nodes/Default), and the system volume is
+#      found by /System/Library/CoreServices. Names are only a fallback.
 #
-#  What the ORIGINAL upstream v1 script got wrong (still fixed here):
+#  What the ORIGINAL upstream v1 script got wrong (still fixed here)
 #   1. It always used UniqueID 501. This Mac's existing account already owns
 #      501, so the created "Apple" record had no usable UID and could not
 #      log in. This script removes that broken record and recreates the user
@@ -29,10 +29,11 @@
 #   3. It always printed success. Every step here is checked and a failing
 #      step stops the script with the error shown.
 #
-#  Volumes: /Volumes/Data is used directly when present, otherwise the first
-#  volume ending in "Data". On this Mac that is "Data" (drive: Macintosh HD).
+#  Volumes - the data volume is found by content (it holds the user
+#  database), names are only a fallback. On this Mac that is "Data"
+#  (drive - Macintosh HD).
 #
-#  Usage (macOS Recovery Terminal, WiFi on):
+#  Usage (macOS Recovery Terminal, WiFi on)
 #      curl -L https://raw.githubusercontent.com/banyourself/bypass-mdm/main/bypass-mdm.sh \
 #          -o bypass-mdm.sh && chmod +x ./bypass-mdm.sh && ./bypass-mdm.sh
 # =============================================================================
@@ -82,7 +83,7 @@ if [ -z "$DATA_VOL" ]; then
 fi
 
 # The SYSTEM volume is the one containing the core OS
-# (/System/Library/CoreServices). It is only used for display: all writes
+# (/System/Library/CoreServices). It is only used for display - all writes
 # below go to the DATA volume, which is where /private/etc and the MDM
 # settings actually live on Catalina and later.
 SYSTEM_VOL=""
