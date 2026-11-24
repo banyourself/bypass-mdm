@@ -41,9 +41,11 @@ Terminal from the Utilities menu, and run:
 curl -L https://raw.githubusercontent.com/banyourself/bypass-mdm/main/bypass-mdm.sh -o bypass-mdm.sh && chmod +x ./bypass-mdm.sh && ./bypass-mdm.sh
 ```
 
-The script auto-detects the volumes (here: system "Macintosh HD", data "Data"),
-repairs or creates the temporary admin account, blocks the enrollment domains,
-and clears the activation records.
+The script finds the volumes by their content, not by assuming names (the
+data volume is the one holding the user database; on this Mac that resolves
+to system "Macintosh HD", data "Data"), repairs or creates the temporary
+admin account, blocks the enrollment domains, and clears the activation
+records.
 
 Then:
 
@@ -66,10 +68,14 @@ this fork both disclaim liability; see the LICENSE.
 
 ## Files
 
-- `bypass-mdm.sh` — the fixed script (legacy name, kept so the upstream usage
-  command works; this fork replaces the original v1 with the fixed version).
-- `bypass-mdm-v2.sh` — the upstream v2, unchanged.
+- `bypass-mdm.sh` — the only script. Self-contained and single-purpose: it
+  finds the volumes (by content markers, not by assuming names), repairs or
+  creates the temporary admin account, and suppresses MDM enrollment.
 - `README.md` — this file.
+
+There is deliberately no second script. The upstream repository ships a
+separate `bypass-mdm-v2.sh`; it never worked on this Mac, and a second file
+only made it easier to run the wrong one, so it is not included here.
 
 ## Credits
 

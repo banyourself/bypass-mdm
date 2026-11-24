@@ -1,12 +1,19 @@
 #!/bin/bash
 # =============================================================================
-#  bypass-mdm.sh v2 - fixed fork of assafdori/bypass-mdm for this MacBook Air
+#  bypass-mdm.sh v3 - THE script. Single file, no siblings.
+#  Fixed fork of assafdori/bypass-mdm for this MacBook Air.
+#  (The upstream's separate bypass-mdm-v2.sh is intentionally NOT included.)
 #  https://github.com/banyourself/bypass-mdm
 #
-#  v1 of this fork failed in Recovery with "basename: command not found":
-#  this Mac's Recovery environment is missing some /usr/bin tools. v2 does
-#  all text handling with pure bash builtins (no basename, no awk, no grep,
-#  no sed), so it only needs: curl, dscl, mkdir, rm, touch, chown.
+#  This fork grew two fixes:
+#    - v2: this Mac's Recovery environment is missing some /usr/bin tools
+#      (basename and friends), so this script does ALL text handling with
+#      pure bash builtins (no basename, no awk, no grep, no sed). It only
+#      needs: curl, dscl, mkdir, rm, touch, chown.
+#    - v3: volume detection no longer assumes a volume is named "... Data".
+#      The data volume is found by its content (it holds the user database
+#      at private/var/db/dslocal/nodes/Default); the system volume by
+#      /System/Library/CoreServices. Names are only a fallback.
 #
 #  What the ORIGINAL upstream v1 script got wrong (still fixed here):
 #   1. It always used UniqueID 501. This Mac's existing account already owns
@@ -36,31 +43,61 @@ USERNAME="Apple"
 FULLNAME="Apple"
 PASSWD="1234"
 
-echo "=== MDM bypass (fixed fork v2) ==="
+echo "=== MDM bypass (fixed fork v3) ==="
 echo ""
 
 # --- 1. locate the volumes (pure bash, no external tools) --------------------
+# The DATA volume is the one that holds the user account database
+# (.../private/var/db/dslocal/nodes/Default). On Catalina and later that is
+# the "Data" volume regardless of what it is called, so we identify it by
+# content, not by name. Name-based checks are only a fallback for a setup
+# where the dslocal tree does not exist yet.
 DATA_VOL=""
-for v in "/Volumes/Data" /Volumes/*Data; do
+for v in /Volumes/*; do
     [ -d "$v" ] || continue
-    DATA_VOL="$v"
-    break
+    if [ -d "$v/private/var/db/dslocal/nodes/Default" ]; then
+        DATA_VOL="$v"
+        break
+    fi
 done
-
-SYSTEM_VOL=""
-shopt -s nullglob
-for v in /Volumes/*/; do
-    v="${v%/}"
-    [ -d "$v/System/Library/CoreServices" ] && { SYSTEM_VOL="$v"; break; }
-done
-shopt -u nullglob
-
 if [ -z "$DATA_VOL" ]; then
-    echo "ERROR: couldn't find the data volume (looked for /Volumes/Data and /Volumes/*Data)"
+    for v in /Volumes/*; do
+        [ -d "$v" ] || continue
+        case "$v" in
+            *Data) DATA_VOL="$v"; break ;;
+        esac
+    done
+fi
+if [ -z "$DATA_VOL" ]; then
+    for v in /Volumes/*; do
+        [ -d "$v" ] || continue
+        case "$v" in
+            *data*|*Data*) DATA_VOL="$v"; break ;;
+        esac
+    done
+fi
+if [ -z "$DATA_VOL" ]; then
+    echo "ERROR: couldn't find the data volume (no volume holds .../private/var/db/dslocal/nodes/Default)"
     exit 1
 fi
 
-echo "System volume : ${SYSTEM_VOL:-<not needed, all writes go to the data volume>}"
+# The SYSTEM volume is the one containing the core OS
+# (/System/Library/CoreServices). It is only used for display: all writes
+# below go to the DATA volume, which is where /private/etc and the MDM
+# settings actually live on Catalina and later.
+SYSTEM_VOL=""
+for v in /Volumes/*; do
+    [ -d "$v" ] || continue
+    if [ -d "$v/System/Library/CoreServices" ]; then
+        SYSTEM_VOL="$v"
+        break
+    fi
+done
+if [ -z "$SYSTEM_VOL" ]; then
+    echo "WARNING: couldn't identify the system volume (cosmetic only - all writes go to the data volume)"
+fi
+
+echo "System volume : ${SYSTEM_VOL:-<not found, writes all go to the data volume>}"
 echo "Data volume   : $DATA_VOL"
 echo ""
 
@@ -176,7 +213,7 @@ done
 
 echo ""
 echo "============================================================"
-echo " DONE (v2)."
+echo " DONE (v3)."
 echo " Close this Terminal window and reboot the Mac."
 echo " At the login screen choose 'Other...' and sign in with:"
 echo "     username: $USERNAME"
