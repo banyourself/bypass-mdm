@@ -50,7 +50,7 @@ Then follow these steps
 
 1. Close Terminal and reboot.
 2. At the login screen choose **Other...** and sign in as `Apple` / `1234`.
-3. In System Settings, go to Users and Groups and create your real admin account.
+3. In System Settings (called System Preferences on older macOS), go to Users and Groups and create your real admin account.
 4. Log out, sign into your real account, then delete the temporary `Apple`
    account with the minus button.
 
