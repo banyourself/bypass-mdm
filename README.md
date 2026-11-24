@@ -26,6 +26,11 @@ hit the same three problems it fixes.
    unconditionally. Every step here is checked. A failed step stops the script
    and shows the error.
 
+The temporary account is always an administrator. The script adds it to the
+admin group on both attributes macOS uses and verifies the membership before
+it finishes, so the lock and Terminal accept it after login. Re-running the
+script is safe.
+
 Plus one environment fix - this Mac's Recovery environment is missing `/usr/bin/basename`
 (and friends), so the fork's first attempt died at volume detection. Everything
 in this version is pure bash builtins - it only needs `curl`, `dscl`, `mkdir`,

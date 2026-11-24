@@ -1,11 +1,11 @@
 #!/bin/bash
 # =============================================================================
-#  bypass-mdm.sh v3 - THE script. Single file, no siblings.
+#  bypass-mdm.sh v4 - THE script. Single file, no siblings.
 #  Fixed fork of assafdori/bypass-mdm for this MacBook Air.
 #  (The upstream's separate bypass-mdm-v2.sh is intentionally NOT included.)
 #  https://github.com/banyourself/bypass-mdm
 #
-#  This fork grew two fixes
+#  This fork grew these fixes
 #    - v2 - this Mac's Recovery environment is missing some /usr/bin tools
 #      (basename and friends), so this script does ALL text handling with
 #      pure bash builtins (no basename, no awk, no grep, no sed). It only
@@ -14,6 +14,11 @@
 #      The data volume is found by its content (it holds the user database
 #      at private/var/db/dslocal/nodes/Default), and the system volume is
 #      found by /System/Library/CoreServices. Names are only a fallback.
+#    - v4 - the temp account is guaranteed to be an administrator. It is
+#      added to the admin group with -merge (so re-running the script never
+#      fails on an existing entry) and on BOTH attributes macOS uses - the
+#      GroupMembership short name and the GroupMembers GeneratedUID - then
+#      verified before the script reports success.
 #
 #  What the ORIGINAL upstream v1 script got wrong (still fixed here)
 #   1. It always used UniqueID 501. This Mac's existing account already owns
@@ -44,7 +49,7 @@ USERNAME="Apple"
 FULLNAME="Apple"
 PASSWD="1234"
 
-echo "=== MDM bypass (fixed fork v3) ==="
+echo "=== MDM bypass (fixed fork v4) ==="
 echo ""
 
 # --- 1. locate the volumes (pure bash, no external tools) --------------------
@@ -170,8 +175,21 @@ dscl -f "$DS" localhost -create "/Local/Default/Users/$USERNAME" NFSHomeDirector
     || { echo "ERROR: could not set home directory"; exit 1; }
 dscl -f "$DS" localhost -passwd "/Local/Default/Users/$USERNAME" "$PASSWD" \
     || { echo "ERROR: could not set password"; exit 1; }
-dscl -f "$DS" localhost -append "/Local/Default/Groups/admin" GroupMembership "$USERNAME" \
+# admin membership - macOS checks the admin group, so add the user on BOTH
+# attributes it uses (GroupMembership short name + GroupMembers GeneratedUID).
+# -merge is idempotent - a re-run never fails on an existing entry.
+dscl -f "$DS" localhost -merge "/Local/Default/Groups/admin" GroupMembership "$USERNAME" \
     || { echo "ERROR: could not add user to admin group"; exit 1; }
+if [ -n "$GUID" ]; then
+    dscl -f "$DS" localhost -merge "/Local/Default/Groups/admin" GroupMembers "$GUID" 2>/dev/null
+fi
+
+# verify the membership actually took before reporting success
+adm="$(dscl -f "$DS" localhost -read "/Local/Default/Groups/admin" GroupMembership 2>/dev/null)"
+case "$adm" in
+    *"$USERNAME"*) echo ">>> '$USERNAME' is an administrator (verified)." ;;
+    *) echo "ERROR: '$USERNAME' is not in the admin group"; exit 1 ;;
+esac
 
 # home directory (a previous run may have created it as root)
 mkdir -p "$DATA_VOL/Users/$USERNAME"
@@ -214,8 +232,9 @@ done
 
 echo ""
 echo "============================================================"
-echo " DONE (v3)."
+echo " DONE (v4)."
 echo " Close this Terminal window and reboot the Mac."
+echo " '$USERNAME' is an administrator - admin applies at login."
 echo " At the login screen choose 'Other...' and sign in with:"
 echo "     username: $USERNAME"
 echo "     password: $PASSWD"
