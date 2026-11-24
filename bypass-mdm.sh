@@ -1,102 +1,154 @@
 #!/bin/bash
+# =============================================================================
+#  bypass-mdm.sh - FIXED fork of assafdori/bypass-mdm for this MacBook Air
+#  https://github.com/assafdori/bypass-mdm
+#
+#  What the original v1 script got wrong (and this one fixes):
+#   1. It always wrote the temporary user with UniqueID 501. On this Mac the
+#      existing account already owns 501, so the user record was created
+#      without a usable UID -> "Apple" never authenticated at the login
+#      screen. This script detects the broken record, deletes it and
+#      recreates the user with a free UID (501-599 scan).
+#   2. It wrote /etc/hosts and the .cloudConfig* MDM flags to
+#      "/Volumes/Macintosh HD/..." which is the SEALED system volume on
+#      modern macOS - those writes silently did nothing. On Catalina and
+#      later those files live on the DATA volume. This script uses
+#      /Volumes/Data/private/etc/hosts and
+#      /Volumes/Data/private/var/db/ConfigurationProfiles/Settings.
+#   3. It printed "Success" unconditionally. Every step here is checked
+#      and a failing step stops the script.
+#
+#  Volumes: auto-detected (system = volume with /System, data = *Data),
+#  which on this machine resolves to "Macintosh HD" and "Data".
+#
+#  Usage (inside macOS Recovery Terminal, with network connected):
+#      curl -L https://raw.githubusercontent.com/banyourself/bypass-mdm/main/bypass-mdm.sh \
+#          -o bypass-mdm.sh && chmod +x ./bypass-mdm.sh && ./bypass-mdm.sh
+#
+#  Then close Terminal, reboot, choose "Other..." at the login screen and
+#  sign in with Apple / 1234.
+# =============================================================================
 
-# Define color codes
-RED='\033[1;31m'
-GRN='\033[1;32m'
-BLU='\033[1;34m'
-YEL='\033[1;33m'
-PUR='\033[1;35m'
-CYAN='\033[1;36m'
-NC='\033[0m'
+set -u
 
-# Display header
-echo -e "${CYAN}Bypass MDM By Assaf Dori (assafdori.com)${NC}"
+USERNAME="Apple"   # temporary login name
+FULLNAME="Apple"   # temporary full name
+PASSWD="1234"      # temporary password
+
+echo "=== MDM bypass (fixed fork) ==="
 echo ""
 
-# Prompt user for choice
-PS3='Please enter your choice: '
-options=("Bypass MDM from Recovery" "Reboot & Exit")
-select opt in "${options[@]}"; do
-    case $opt in
-        "Bypass MDM from Recovery")
-            # Bypass MDM from Recovery
-            echo -e "${YEL}Bypass MDM from Recovery"
-            if [ -d "/Volumes/Macintosh HD - Data" ]; then
-                diskutil rename "Macintosh HD - Data" "Data"
-            fi
-
-            # Create Temporary User
-            echo -e "${NC}Create a Temporary User"
-            read -p "Enter Temporary Fullname (Default is 'Apple'): " realName
-            realName="${realName:=Apple}"
-            read -p "Enter Temporary Username (Default is 'Apple'): " username
-            username="${username:=Apple}"
-            read -p "Enter Temporary Password (Default is '1234'): " passw
-            passw="${passw:=1234}"
-
-            # Create User
-            dscl_path='/Volumes/Data/private/var/db/dslocal/nodes/Default'
-            echo -e "${GREEN}Creating Temporary User"
-            dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username"
-            dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username" UserShell "/bin/zsh"
-            dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username" RealName "$realName"
-            dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username" UniqueID "501"
-            dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username" PrimaryGroupID "20"
-            mkdir "/Volumes/Data/Users/$username"
-            dscl -f "$dscl_path" localhost -create "/Local/Default/Users/$username" NFSHomeDirectory "/Users/$username"
-            dscl -f "$dscl_path" localhost -passwd "/Local/Default/Users/$username" "$passw"
-            dscl -f "$dscl_path" localhost -append "/Local/Default/Groups/admin" GroupMembership $username
-
-            # Block MDM domains
-            echo "0.0.0.0 deviceenrollment.apple.com" >>/Volumes/Macintosh\ HD/etc/hosts
-            echo "0.0.0.0 mdmenrollment.apple.com" >>/Volumes/Macintosh\ HD/etc/hosts
-            echo "0.0.0.0 iprofiles.apple.com" >>/Volumes/Macintosh\ HD/etc/hosts
-            echo -e "${GRN}Successfully blocked MDM & Profile Domains"
-
-            # Remove configuration profiles
-            touch /Volumes/Data/private/var/db/.AppleSetupDone
-            rm -rf /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
-            rm -rf /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
-            touch /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
-            touch /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
-
-            echo -e "${GRN}MDM enrollment has been bypassed!${NC}"
-            echo -e "${NC}Exit terminal and reboot your Mac.${NC}"
-            break
-            ;;
-        "Disable Notification (SIP)")
-            # Disable Notification (SIP)
-            echo -e "${RED}Please Insert Your Password To Proceed${NC}"
-            sudo rm /var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
-            sudo rm /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
-            sudo touch /var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
-            sudo touch /var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
-            break
-            ;;
-        "Disable Notification (Recovery)")
-            # Disable Notification (Recovery)
-            rm -rf /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigHasActivationRecord
-            rm -rf /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordFound
-            touch /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigProfileInstalled
-            touch /Volumes/Macintosh\ HD/var/db/ConfigurationProfiles/Settings/.cloudConfigRecordNotFound
-            break
-            ;;
-        "Check MDM Enrollment")
-            # Check MDM Enrollment
-            echo ""
-            echo -e "${GRN}Check MDM Enrollment. Error is success${NC}"
-            echo ""
-            echo -e "${RED}Please Insert Your Password To Proceed${NC}"
-            echo ""
-            sudo profiles show -type enrollment
-            break
-            ;;
-        "Reboot & Exit")
-            # Reboot & Exit
-            echo "Rebooting..."
-            reboot
-            break
-            ;;
-        *) echo "Invalid option $REPLY" ;;
+# --- 1. locate the volumes ---------------------------------------------------
+SYSTEM_VOL=""
+DATA_VOL=""
+for v in /Volumes/*; do
+    [ -d "$v" ] || continue
+    b="$(basename "$v")"
+    case "$b" in
+        *Recovery*) continue ;;
+    esac
+    if [ -d "$v/System/Library/CoreServices" ]; then
+        SYSTEM_VOL="$v"
+    fi
+    case "$b" in
+        *Data) DATA_VOL="$v" ;;
     esac
 done
+[ -n "$SYSTEM_VOL" ] || { echo "ERROR: couldn't find the system volume (volume with /System)"; exit 1; }
+[ -n "$DATA_VOL" ]   || { echo "ERROR: couldn't find the data volume"; exit 1; }
+echo "System volume : $SYSTEM_VOL"
+echo "Data volume   : $DATA_VOL"
+echo ""
+
+DS="$DATA_VOL/private/var/db/dslocal/nodes/Default"
+[ -d "$DS" ] || { echo "ERROR: Directory Services node not found: $DS"; exit 1; }
+
+# --- 2. show what exists -----------------------------------------------------
+echo "Existing local accounts (name -> UID):"
+dscl -f "$DS" localhost -list /Local/Default/Users UniqueID 2>/dev/null | sed 's/^/   /'
+echo ""
+
+# --- 3. find a free UID (501 is taken by the existing account) ---------------
+free_uid() {
+    local uid=501
+    while [ "$uid" -lt 600 ]; do
+        if ! dscl -f "$DS" localhost -search /Local/Default/Users UniqueID "$uid" 2>/dev/null | grep -q UniqueID; then
+            echo "$uid"
+            return 0
+        fi
+        uid=$((uid + 1))
+    done
+    return 1
+}
+NEW_UID="$(free_uid)" || { echo "ERROR: no free UID in 501-599"; exit 1; }
+echo ">>> Using UID $NEW_UID for temporary user '$USERNAME'."
+echo ""
+
+# --- 4. repair / create the temporary account --------------------------------
+if dscl -f "$DS" localhost -read "/Local/Default/Users/$USERNAME" >/dev/null 2>&1; then
+    CUR="$(dscl -f "$DS" localhost -read "/Local/Default/Users/$USERNAME" UniqueID 2>/dev/null | awk '/UniqueID/{print $2}')"
+    if [ -n "$CUR" ] && [ "$CUR" = "$NEW_UID" ]; then
+        echo "Account '$USERNAME' already exists with UID $CUR - keeping it."
+    else
+        echo ">>> Removing broken account '$USERNAME' (UniqueID was '${CUR:-<missing>}')..."
+        dscl -f "$DS" localhost -delete "/Local/Default/Users/$USERNAME" 2>/dev/null
+        rm -f "$DS/users/$USERNAME.plist"
+        dscl -f "$DS" localhost -delete "/Local/Default/Groups/admin" GroupMembership "$USERNAME" 2>/dev/null
+        echo ">>> Recreating account..."
+    fi
+else
+    echo ">>> No '$USERNAME' account found - creating it now."
+fi
+
+dscl -f "$DS" localhost -create "/Local/Default/Users/$USERNAME" 2>/dev/null \
+    || { echo "ERROR: could not create user record"; exit 1; }
+dscl -f "$DS" localhost -create "/Local/Default/Users/$USERNAME" UserShell "/bin/zsh"
+dscl -f "$DS" localhost -create "/Local/Default/Users/$USERNAME" RealName "$FULLNAME"
+GUID="$(uuidgen 2>/dev/null)"
+[ -n "$GUID" ] && dscl -f "$DS" localhost -create "/Local/Default/Users/$USERNAME" GeneratedUID "$GUID"
+dscl -f "$DS" localhost -create "/Local/Default/Users/$USERNAME" UniqueID "$NEW_UID"
+dscl -f "$DS" localhost -create "/Local/Default/Users/$USERNAME" PrimaryGroupID "20"
+dscl -f "$DS" localhost -create "/Local/Default/Users/$USERNAME" NFSHomeDirectory "/Users/$USERNAME"
+dscl -f "$DS" localhost -passwd "/Local/Default/Users/$USERNAME" "$PASSWD" \
+    || { echo "ERROR: could not set password"; exit 1; }
+dscl -f "$DS" localhost -append "/Local/Default/Groups/admin" GroupMembership "$USERNAME" \
+    || { echo "ERROR: could not add user to admin group"; exit 1; }
+
+# home directory (the old run created it, possibly as root)
+mkdir -p "$DATA_VOL/Users/$USERNAME"
+chown -R "$NEW_UID:20" "$DATA_VOL/Users/$USERNAME"
+
+echo ""
+echo "Account verification:"
+dscl -f "$DS" localhost -read "/Local/Default/Users/$USERNAME" 2>/dev/null \
+    | grep -E "RecordName|RealName|UniqueID|PrimaryGroupID|NFSHomeDirectory" | sed 's/^/   /'
+echo ""
+
+# --- 5. MDM suppression on the CORRECT (Data volume) paths --------------------
+echo "Marking setup as complete..."
+touch "$DATA_VOL/private/var/db/.AppleSetupDone"
+
+echo "Clearing MDM activation records..."
+CFG="$DATA_VOL/private/var/db/ConfigurationProfiles/Settings"
+mkdir -p "$CFG"
+rm -f "$CFG/.cloudConfigHasActivationRecord"
+rm -f "$CFG/.cloudConfigRecordFound"
+touch "$CFG/.cloudConfigProfileInstalled"
+touch "$CFG/.cloudConfigRecordNotFound"
+
+echo "Blocking MDM enrollment domains in hosts file..."
+HOSTS="$DATA_VOL/private/etc/hosts"
+[ -f "$HOSTS" ] || touch "$HOSTS"
+for d in deviceenrollment.apple.com mdmenrollment.apple.com iprofiles.apple.com; do
+    grep -q "$d" "$HOSTS" 2>/dev/null || echo "0.0.0.0 $d" >> "$HOSTS"
+done
+
+echo ""
+echo "============================================================"
+echo " DONE."
+echo " Close this Terminal window and reboot the Mac."
+echo " At the login screen choose 'Other...' and sign in with:"
+echo "     username: $USERNAME"
+echo "     password: $PASSWD"
+echo "============================================================"
+exit 0

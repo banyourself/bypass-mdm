@@ -1,5 +1,21 @@
 # Bypass MDM for macOS 💻
 
+> ## ⚠️ This fork: fixed script for this MacBook Air
+>
+> The original v1 script created a broken temporary user (it always used
+> UID 501, which the existing account already owns) and wrote the MDM
+> suppression files to the sealed system volume where they silently did
+> nothing. `bypass-mdm.sh` in this fork fixes both: it detects and repairs
+> a broken `Apple` account with a free UID, and writes the MDM flags and
+> hosts entries to the DATA volume (the correct location on Catalina and
+> later). Volumes are auto-detected ("Macintosh HD" / "Data").
+>
+> **Run this one (not v2):**
+> ```bash
+> curl -L https://raw.githubusercontent.com/banyourself/bypass-mdm/main/bypass-mdm.sh -o bypass-mdm.sh && chmod +x ./bypass-mdm.sh && ./bypass-mdm.sh
+> ```
+> Then reboot, choose "Other..." and log in as `Apple` / `1234`.
+
 ![mdm-screen](https://raw.githubusercontent.com/assafdori/bypass-mdm/main/mdm-screen.png)
 
 A script to bypass Mobile Device Management (MDM) enrollment during macOS setup.
