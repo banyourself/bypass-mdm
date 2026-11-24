@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-#  bypass-mdm.sh v5 - THE script. Single file, no siblings.
+#  bypass-mdm.sh v6 - THE script. Single file, no siblings.
 #  Fixed fork of assafdori/bypass-mdm for this MacBook Air.
 #  (The upstream's separate bypass-mdm-v2.sh is intentionally NOT included.)
 #  https://github.com/banyourself/bypass-mdm
@@ -25,6 +25,11 @@
 #      with a new UID every time. Now the account is kept whenever it has
 #      any valid UID, and GeneratedUID gets a pure-bash fallback when
 #      uuidgen is missing.
+#    - v6 - an already-installed MDM profile is removed too. Clearing the
+#      activation records only stops NEW enrollment - a profile that was
+#      pushed before the bypass stays and shows as "verified". This wipes
+#      the profile store on the Data volume (writable from Recovery, no
+#      SIP change needed) and recreates the Settings flags.
 #
 #  What the ORIGINAL upstream v1 script got wrong (still fixed here)
 #   1. It always used UniqueID 501. This Mac's existing account already owns
@@ -55,7 +60,7 @@ USERNAME="Apple"
 FULLNAME="Apple"
 PASSWD="1234"
 
-echo "=== MDM bypass (fixed fork v5) ==="
+echo "=== MDM bypass (fixed fork v6) ==="
 echo ""
 
 # --- 1. locate the volumes (pure bash, no external tools) --------------------
@@ -242,9 +247,15 @@ echo ""
 echo "Marking setup as complete..."
 touch "$DATA_VOL/private/var/db/.AppleSetupDone"
 
-echo "Clearing MDM activation records..."
+echo "Removing installed MDM profile store..."
+# an already-pushed enrollment profile stays installed unless its store is
+# wiped - clearing the flags below only stops NEW enrollment. The whole
+# ConfigurationProfiles tree is removed and recreated with the flags.
+rm -rf "$DATA_VOL/private/var/db/ConfigurationProfiles"
+
 CFG="$DATA_VOL/private/var/db/ConfigurationProfiles/Settings"
 mkdir -p "$CFG"
+touch "$CFG/.profilesAreInstalled"
 rm -f "$CFG/.cloudConfigHasActivationRecord"
 rm -f "$CFG/.cloudConfigRecordFound"
 touch "$CFG/.cloudConfigProfileInstalled"
@@ -264,7 +275,7 @@ done
 
 echo ""
 echo "============================================================"
-echo " DONE (v5)."
+echo " DONE (v6)."
 echo " Close this Terminal window and reboot the Mac."
 echo " '$USERNAME' is an administrator - admin applies at login."
 echo " At the login screen choose 'Other...' and sign in with:"
