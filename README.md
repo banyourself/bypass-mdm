@@ -51,6 +51,25 @@ volume is the one holding the user database - on this Mac that is system
 "Macintosh HD" and data "Data"). It repairs or creates the temporary admin
 account, blocks the enrollment domains, and clears the activation records.
 
+### I already ran it once and still see the MDM profile
+
+If you ran an earlier version and the MDM profile still shows in System
+Preferences > Profiles as "verified" (and the minus button is greyed out), the
+profile was pushed to the Mac *before* the bypass ran. Clearing the activation
+records only stops **new** enrollment - it does not remove a profile that is
+already installed. Re-run the script (v6 or later): it now also wipes the
+installed profile store on the Data volume, which is writable from Recovery
+with no SIP change needed.
+
+```bash
+rm -f bypass-mdm.sh && curl -L https://raw.githubusercontent.com/banyourself/bypass-mdm/main/bypass-mdm.sh -o bypass-mdm.sh && chmod +x ./bypass-mdm.sh && ./bypass-mdm.sh
+```
+
+Wait for it to print `DONE (v6).` (an older version prints `DONE (v5).`), then
+reboot. Your existing accounts are untouched - the script only ever modifies
+the temporary `Apple` account, and on a re-run it keeps it as-is rather than
+recreating it. You do not need to redo the account setup.
+
 Then follow these steps
 
 1. Close Terminal and reboot.
